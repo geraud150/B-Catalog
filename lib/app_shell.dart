@@ -7,6 +7,7 @@ import 'core/theme/app_palette.dart';
 import 'features/home/home_screen.dart';
 import 'features/import/import_hub_screen.dart';
 import 'features/product_list/product_list_screen.dart';
+import 'features/sync/catalog_auto_sync.dart';
 
 /// Racine de la navigation : trois destinations (Accueil / Produits /
 /// Import), chacune conservant son état grâce à [IndexedStack]. Les écrans
@@ -28,9 +29,13 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   static const _homeIndex = 0;
   static const _productsIndex = 1;
+
+  late final CatalogAutoSync _autoSync = CatalogAutoSync(
+    database: widget.database,
+  )..start();
 
   static const _destinations = [
     (icon: Icons.home_outlined, selected: Icons.home, label: 'Accueil'),
@@ -56,6 +61,27 @@ class _AppShellState extends State<AppShell> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Après le premier affichage plutôt que dans initState : _autoSync lit
+    // la session Supabase courante, pas encore utile avant que l'app existe.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _autoSync.trigger());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _autoSync.trigger();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _autoSync.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final content = IndexedStack(
       index: _selectedIndex,
@@ -65,7 +91,10 @@ class _AppShellState extends State<AppShell> {
           onShowProducts: () => _select(_productsIndex),
         ),
         ProductListScreen(database: widget.database),
-        ImportHubScreen(database: widget.database),
+        ImportHubScreen(
+          database: widget.database,
+          syncError: _autoSync.lastError,
+        ),
       ],
     );
 

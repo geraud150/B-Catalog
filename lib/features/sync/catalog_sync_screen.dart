@@ -87,9 +87,7 @@ class _CatalogSyncScreenState extends State<CatalogSyncScreen> {
       });
     } catch (error) {
       if (mounted) {
-        setState(() {
-          _error = error.toString().replaceFirst('Bad state: ', '');
-        });
+        setState(() => _error = describeCatalogSyncError(error));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

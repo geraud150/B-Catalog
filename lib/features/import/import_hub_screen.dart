@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import '../../core/database/app_database.dart';
@@ -24,9 +25,15 @@ import 'import_preview_screen.dart';
 /// Les écrans cibles ([ImportPreviewScreen], [ReviewScreen]) sont poussés
 /// par-dessus le shell.
 class ImportHubScreen extends StatelessWidget {
-  const ImportHubScreen({super.key, required this.database});
+  const ImportHubScreen({super.key, required this.database, this.syncError});
 
   final AppDatabase database;
+
+  /// Message de la dernière synchronisation automatique en échec, pour un
+  /// indicateur discret sur la carte de synchro. Null tant que tout va bien
+  /// (ou que la synchro automatique n'est pas utilisée dans ce contexte,
+  /// par ex. dans les tests qui instancient cet écran directement).
+  final ValueListenable<String?>? syncError;
 
   Future<void> _importDocument(BuildContext context) async {
     final importedCount = await ImportPreviewScreen.pickAndImport(
@@ -76,12 +83,30 @@ class ImportHubScreen extends StatelessWidget {
     onTap: () => _openReview(context),
   );
 
-  Widget _syncCard(BuildContext context) => _HubCard(
-    icon: Icons.sync,
-    title: 'Synchroniser le catalogue',
-    subtitle: 'Partager les modifications avec les autres appareils.',
-    onTap: () => _openCatalogSync(context),
-  );
+  Widget _syncCard(BuildContext context) {
+    final listenable = syncError;
+    if (listenable == null) {
+      return _HubCard(
+        icon: Icons.sync,
+        title: 'Synchroniser le catalogue',
+        subtitle: 'Partager les modifications avec les autres appareils.',
+        onTap: () => _openCatalogSync(context),
+      );
+    }
+    return ValueListenableBuilder<String?>(
+      valueListenable: listenable,
+      builder: (context, error, _) => _HubCard(
+        icon: Icons.sync,
+        title: 'Synchroniser le catalogue',
+        subtitle: error == null
+            ? 'Partager les modifications avec les autres appareils.'
+            : 'La dernière synchronisation automatique a échoué. '
+                  'Appuyez pour voir le détail.',
+        alert: error != null,
+        onTap: () => _openCatalogSync(context),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -142,6 +167,7 @@ class _HubCard extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.tag,
+    this.alert = false,
   });
 
   final IconData icon;
@@ -149,6 +175,10 @@ class _HubCard extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final String? tag;
+
+  /// Petit point rouge sur la vignette, pour signaler discrètement un souci
+  /// (ex. dernière synchronisation automatique en échec) sans interrompre.
+  final bool alert;
 
   @override
   Widget build(BuildContext context) {
@@ -170,14 +200,36 @@ class _HubCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: AppPalette.brand100,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(icon, color: AppPalette.brand700, size: 28),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: AppPalette.brand100,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(icon, color: AppPalette.brand700, size: 28),
+                    ),
+                    if (alert)
+                      Positioned(
+                        top: -2,
+                        right: -2,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.error,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppPalette.surface,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -203,9 +255,11 @@ class _HubCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         subtitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppPalette.muted,
+                          color: alert
+                              ? Theme.of(context).colorScheme.error
+                              : AppPalette.muted,
                           height: 1.5,
                         ),
                       ),

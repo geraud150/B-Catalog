@@ -119,6 +119,21 @@ class SyncService {
         );
         continue;
       }
+      // Loyverse rejette une catégorie de plus de 64 caractères. Le
+      // formulaire la bloque désormais à la saisie, mais une fiche plus
+      // ancienne (import, édition directe) peut encore la dépasser.
+      if (category.length > 64) {
+        results.add(
+          SyncResult(
+            product: product,
+            success: false,
+            errorMessage:
+                'Catégorie trop longue (${category.length}/64 caractères '
+                'maximum pour Loyverse)',
+          ),
+        );
+        continue;
+      }
       valid.add(product);
     }
 

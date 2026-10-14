@@ -7,6 +7,44 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/database/app_database.dart';
 import '../photo/photo_service.dart';
 
+/// Message clair pour l'utilisateur à partir d'une erreur survenue pendant
+/// [CatalogSyncService.synchronize]. Les exceptions des bibliothèques
+/// Supabase (et `dart:io` pour le réseau) sont assez explicites pour un
+/// développeur, mais pas pour quelqu'un qui vient de taper sur
+/// "Synchroniser maintenant" en boutique.
+String describeCatalogSyncError(Object error) {
+  if (error is StateError) return error.message;
+  if (error is SocketException) {
+    return 'Pas de connexion internet. Vérifiez votre réseau et réessayez.';
+  }
+  if (error is AuthException) {
+    return 'Votre session a expiré. Déconnectez puis reconnectez cet appareil.';
+  }
+  if (error is FunctionException) {
+    final details = error.details;
+    final code = details is Map ? details['error'] : null;
+    return switch (code) {
+      'photo_storage_failed' =>
+        'Le stockage des photos a rencontré un problème côté serveur. '
+            'Réessayez dans un instant.',
+      'catalog_access_required' =>
+        'Votre session n’a plus accès au catalogue. Déconnectez puis '
+            'reconnectez cet appareil.',
+      'invalid_photo' ||
+      'photo_too_large' =>
+        'La photo d’un produit est invalide ou trop volumineuse pour être '
+            'envoyée.',
+      _ =>
+        'Le service de synchronisation a rencontré un problème '
+            '(${error.status}).',
+    };
+  }
+  if (error is PostgrestException) {
+    return 'Erreur du serveur de synchronisation : ${error.message}';
+  }
+  return 'Une erreur inattendue est survenue pendant la synchronisation.';
+}
+
 class CatalogSyncReport {
   const CatalogSyncReport({
     required this.uploaded,

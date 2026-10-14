@@ -641,6 +641,10 @@ class _ProductEntryScreenState extends State<ProductEntryScreen> {
               focusNode: focusNode,
               textCapitalization: TextCapitalization.sentences,
               onFieldSubmitted: (_) => onSubmitted(),
+              // Loyverse rejette une catégorie au-delà de 64 caractères ;
+              // bloquer la saisie ici évite l'échec (peu clair) au moment
+              // de l'envoi.
+              maxLength: 64,
               decoration: _fieldDecoration(
                 hint: _knownCategories.isEmpty
                     ? 'ex. Soins du visage'

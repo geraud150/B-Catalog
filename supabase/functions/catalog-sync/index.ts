@@ -26,6 +26,21 @@ function storageHeaders(contentType?: string) {
   };
 }
 
+/// The Storage API answers a missing bucket with `404` in general, but with
+/// `{"code":"NoSuchBucket", ...}` wrapped in a plain `400` for a bucket
+/// lookup specifically (observed on this project's Storage version). Both
+/// mean "create it"; anything else is a real failure.
+async function bucketIsMissing(response: Response): Promise<boolean> {
+  if (response.status === 404) return true;
+  if (response.status !== 400) return false;
+  try {
+    const body = await response.clone().json();
+    return body?.code === 'NoSuchBucket';
+  } catch {
+    return false;
+  }
+}
+
 async function ensurePrivateBucket() {
   const baseUrl = Deno.env.get('SUPABASE_URL');
   const headers = storageHeaders('application/json');
@@ -49,7 +64,9 @@ async function ensurePrivateBucket() {
     if (!updated.ok) throw new Error('Could not secure photo storage.');
     return;
   }
-  if (existing.status !== 404) throw new Error('Could not access photo storage.');
+  if (!(await bucketIsMissing(existing))) {
+    throw new Error('Could not access photo storage.');
+  }
 
   const created = await fetch(`${baseUrl}/storage/v1/bucket`, {
     method: 'POST',
