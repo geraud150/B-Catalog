@@ -234,6 +234,42 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
+  @override
+  late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
+    'sync_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: () => const Uuid().v4(),
+  );
+  static const VerificationMeta _remoteRevisionMeta = const VerificationMeta(
+    'remoteRevision',
+  );
+  @override
+  late final GeneratedColumn<int> remoteRevision = GeneratedColumn<int>(
+    'remote_revision',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _syncPendingMeta = const VerificationMeta(
+    'syncPending',
+  );
+  @override
+  late final GeneratedColumn<bool> syncPending = GeneratedColumn<bool>(
+    'sync_pending',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("sync_pending" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -256,6 +292,9 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     groupId,
     importSource,
     importBatchId,
+    syncId,
+    remoteRevision,
+    syncPending,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -409,6 +448,30 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         ),
       );
     }
+    if (data.containsKey('sync_id')) {
+      context.handle(
+        _syncIdMeta,
+        syncId.isAcceptableOrUnknown(data['sync_id']!, _syncIdMeta),
+      );
+    }
+    if (data.containsKey('remote_revision')) {
+      context.handle(
+        _remoteRevisionMeta,
+        remoteRevision.isAcceptableOrUnknown(
+          data['remote_revision']!,
+          _remoteRevisionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sync_pending')) {
+      context.handle(
+        _syncPendingMeta,
+        syncPending.isAcceptableOrUnknown(
+          data['sync_pending']!,
+          _syncPendingMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -498,6 +561,18 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         DriftSqlType.string,
         data['${effectivePrefix}import_batch_id'],
       ),
+      syncId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_id'],
+      ),
+      remoteRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}remote_revision'],
+      ),
+      syncPending: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}sync_pending'],
+      )!,
     );
   }
 
@@ -539,6 +614,9 @@ class Product extends DataClass implements Insertable<Product> {
   /// Identifiant (UUID) partagé par tous les produits créés lors d'un même
   /// import en masse, pour retrouver ou tracer un lot dans son ensemble.
   final String? importBatchId;
+  final String? syncId;
+  final int? remoteRevision;
+  final bool syncPending;
   const Product({
     required this.id,
     this.barcode,
@@ -560,6 +638,9 @@ class Product extends DataClass implements Insertable<Product> {
     this.groupId,
     this.importSource,
     this.importBatchId,
+    this.syncId,
+    this.remoteRevision,
+    required this.syncPending,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -612,6 +693,13 @@ class Product extends DataClass implements Insertable<Product> {
     if (!nullToAbsent || importBatchId != null) {
       map['import_batch_id'] = Variable<String>(importBatchId);
     }
+    if (!nullToAbsent || syncId != null) {
+      map['sync_id'] = Variable<String>(syncId);
+    }
+    if (!nullToAbsent || remoteRevision != null) {
+      map['remote_revision'] = Variable<int>(remoteRevision);
+    }
+    map['sync_pending'] = Variable<bool>(syncPending);
     return map;
   }
 
@@ -663,6 +751,13 @@ class Product extends DataClass implements Insertable<Product> {
       importBatchId: importBatchId == null && nullToAbsent
           ? const Value.absent()
           : Value(importBatchId),
+      syncId: syncId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncId),
+      remoteRevision: remoteRevision == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remoteRevision),
+      syncPending: Value(syncPending),
     );
   }
 
@@ -694,6 +789,9 @@ class Product extends DataClass implements Insertable<Product> {
       groupId: serializer.fromJson<String?>(json['groupId']),
       importSource: serializer.fromJson<String?>(json['importSource']),
       importBatchId: serializer.fromJson<String?>(json['importBatchId']),
+      syncId: serializer.fromJson<String?>(json['syncId']),
+      remoteRevision: serializer.fromJson<int?>(json['remoteRevision']),
+      syncPending: serializer.fromJson<bool>(json['syncPending']),
     );
   }
   @override
@@ -720,6 +818,9 @@ class Product extends DataClass implements Insertable<Product> {
       'groupId': serializer.toJson<String?>(groupId),
       'importSource': serializer.toJson<String?>(importSource),
       'importBatchId': serializer.toJson<String?>(importBatchId),
+      'syncId': serializer.toJson<String?>(syncId),
+      'remoteRevision': serializer.toJson<int?>(remoteRevision),
+      'syncPending': serializer.toJson<bool>(syncPending),
     };
   }
 
@@ -744,6 +845,9 @@ class Product extends DataClass implements Insertable<Product> {
     Value<String?> groupId = const Value.absent(),
     Value<String?> importSource = const Value.absent(),
     Value<String?> importBatchId = const Value.absent(),
+    Value<String?> syncId = const Value.absent(),
+    Value<int?> remoteRevision = const Value.absent(),
+    bool? syncPending,
   }) => Product(
     id: id ?? this.id,
     barcode: barcode.present ? barcode.value : this.barcode,
@@ -771,6 +875,11 @@ class Product extends DataClass implements Insertable<Product> {
     importBatchId: importBatchId.present
         ? importBatchId.value
         : this.importBatchId,
+    syncId: syncId.present ? syncId.value : this.syncId,
+    remoteRevision: remoteRevision.present
+        ? remoteRevision.value
+        : this.remoteRevision,
+    syncPending: syncPending ?? this.syncPending,
   );
   Product copyWithCompanion(ProductsCompanion data) {
     return Product(
@@ -810,6 +919,13 @@ class Product extends DataClass implements Insertable<Product> {
       importBatchId: data.importBatchId.present
           ? data.importBatchId.value
           : this.importBatchId,
+      syncId: data.syncId.present ? data.syncId.value : this.syncId,
+      remoteRevision: data.remoteRevision.present
+          ? data.remoteRevision.value
+          : this.remoteRevision,
+      syncPending: data.syncPending.present
+          ? data.syncPending.value
+          : this.syncPending,
     );
   }
 
@@ -835,13 +951,16 @@ class Product extends DataClass implements Insertable<Product> {
           ..write('loyverseVariantId: $loyverseVariantId, ')
           ..write('groupId: $groupId, ')
           ..write('importSource: $importSource, ')
-          ..write('importBatchId: $importBatchId')
+          ..write('importBatchId: $importBatchId, ')
+          ..write('syncId: $syncId, ')
+          ..write('remoteRevision: $remoteRevision, ')
+          ..write('syncPending: $syncPending')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     barcode,
     sku,
@@ -862,7 +981,10 @@ class Product extends DataClass implements Insertable<Product> {
     groupId,
     importSource,
     importBatchId,
-  );
+    syncId,
+    remoteRevision,
+    syncPending,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -886,7 +1008,10 @@ class Product extends DataClass implements Insertable<Product> {
           other.loyverseVariantId == this.loyverseVariantId &&
           other.groupId == this.groupId &&
           other.importSource == this.importSource &&
-          other.importBatchId == this.importBatchId);
+          other.importBatchId == this.importBatchId &&
+          other.syncId == this.syncId &&
+          other.remoteRevision == this.remoteRevision &&
+          other.syncPending == this.syncPending);
 }
 
 class ProductsCompanion extends UpdateCompanion<Product> {
@@ -910,6 +1035,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
   final Value<String?> groupId;
   final Value<String?> importSource;
   final Value<String?> importBatchId;
+  final Value<String?> syncId;
+  final Value<int?> remoteRevision;
+  final Value<bool> syncPending;
   const ProductsCompanion({
     this.id = const Value.absent(),
     this.barcode = const Value.absent(),
@@ -931,6 +1059,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.groupId = const Value.absent(),
     this.importSource = const Value.absent(),
     this.importBatchId = const Value.absent(),
+    this.syncId = const Value.absent(),
+    this.remoteRevision = const Value.absent(),
+    this.syncPending = const Value.absent(),
   });
   ProductsCompanion.insert({
     this.id = const Value.absent(),
@@ -953,6 +1084,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.groupId = const Value.absent(),
     this.importSource = const Value.absent(),
     this.importBatchId = const Value.absent(),
+    this.syncId = const Value.absent(),
+    this.remoteRevision = const Value.absent(),
+    this.syncPending = const Value.absent(),
   }) : name = Value(name);
   static Insertable<Product> custom({
     Expression<int>? id,
@@ -975,6 +1109,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Expression<String>? groupId,
     Expression<String>? importSource,
     Expression<String>? importBatchId,
+    Expression<String>? syncId,
+    Expression<int>? remoteRevision,
+    Expression<bool>? syncPending,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -997,6 +1134,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       if (groupId != null) 'group_id': groupId,
       if (importSource != null) 'import_source': importSource,
       if (importBatchId != null) 'import_batch_id': importBatchId,
+      if (syncId != null) 'sync_id': syncId,
+      if (remoteRevision != null) 'remote_revision': remoteRevision,
+      if (syncPending != null) 'sync_pending': syncPending,
     });
   }
 
@@ -1021,6 +1161,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Value<String?>? groupId,
     Value<String?>? importSource,
     Value<String?>? importBatchId,
+    Value<String?>? syncId,
+    Value<int?>? remoteRevision,
+    Value<bool>? syncPending,
   }) {
     return ProductsCompanion(
       id: id ?? this.id,
@@ -1043,6 +1186,9 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       groupId: groupId ?? this.groupId,
       importSource: importSource ?? this.importSource,
       importBatchId: importBatchId ?? this.importBatchId,
+      syncId: syncId ?? this.syncId,
+      remoteRevision: remoteRevision ?? this.remoteRevision,
+      syncPending: syncPending ?? this.syncPending,
     );
   }
 
@@ -1109,6 +1255,15 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     if (importBatchId.present) {
       map['import_batch_id'] = Variable<String>(importBatchId.value);
     }
+    if (syncId.present) {
+      map['sync_id'] = Variable<String>(syncId.value);
+    }
+    if (remoteRevision.present) {
+      map['remote_revision'] = Variable<int>(remoteRevision.value);
+    }
+    if (syncPending.present) {
+      map['sync_pending'] = Variable<bool>(syncPending.value);
+    }
     return map;
   }
 
@@ -1134,7 +1289,10 @@ class ProductsCompanion extends UpdateCompanion<Product> {
           ..write('loyverseVariantId: $loyverseVariantId, ')
           ..write('groupId: $groupId, ')
           ..write('importSource: $importSource, ')
-          ..write('importBatchId: $importBatchId')
+          ..write('importBatchId: $importBatchId, ')
+          ..write('syncId: $syncId, ')
+          ..write('remoteRevision: $remoteRevision, ')
+          ..write('syncPending: $syncPending')
           ..write(')'))
         .toString();
   }
@@ -1934,6 +2092,487 @@ class LoyverseCacheCompanion extends UpdateCompanion<LoyverseCacheData> {
   }
 }
 
+class $ProductSyncTombstonesTable extends ProductSyncTombstones
+    with TableInfo<$ProductSyncTombstonesTable, ProductSyncTombstone> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProductSyncTombstonesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
+  @override
+  late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
+    'sync_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _remoteRevisionMeta = const VerificationMeta(
+    'remoteRevision',
+  );
+  @override
+  late final GeneratedColumn<int> remoteRevision = GeneratedColumn<int>(
+    'remote_revision',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [syncId, remoteRevision, deletedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'product_sync_tombstones';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProductSyncTombstone> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('sync_id')) {
+      context.handle(
+        _syncIdMeta,
+        syncId.isAcceptableOrUnknown(data['sync_id']!, _syncIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_syncIdMeta);
+    }
+    if (data.containsKey('remote_revision')) {
+      context.handle(
+        _remoteRevisionMeta,
+        remoteRevision.isAcceptableOrUnknown(
+          data['remote_revision']!,
+          _remoteRevisionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_remoteRevisionMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {syncId};
+  @override
+  ProductSyncTombstone map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProductSyncTombstone(
+      syncId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_id'],
+      )!,
+      remoteRevision: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}remote_revision'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ProductSyncTombstonesTable createAlias(String alias) {
+    return $ProductSyncTombstonesTable(attachedDatabase, alias);
+  }
+}
+
+class ProductSyncTombstone extends DataClass
+    implements Insertable<ProductSyncTombstone> {
+  final String syncId;
+  final int remoteRevision;
+  final DateTime deletedAt;
+  const ProductSyncTombstone({
+    required this.syncId,
+    required this.remoteRevision,
+    required this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['sync_id'] = Variable<String>(syncId);
+    map['remote_revision'] = Variable<int>(remoteRevision);
+    map['deleted_at'] = Variable<DateTime>(deletedAt);
+    return map;
+  }
+
+  ProductSyncTombstonesCompanion toCompanion(bool nullToAbsent) {
+    return ProductSyncTombstonesCompanion(
+      syncId: Value(syncId),
+      remoteRevision: Value(remoteRevision),
+      deletedAt: Value(deletedAt),
+    );
+  }
+
+  factory ProductSyncTombstone.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProductSyncTombstone(
+      syncId: serializer.fromJson<String>(json['syncId']),
+      remoteRevision: serializer.fromJson<int>(json['remoteRevision']),
+      deletedAt: serializer.fromJson<DateTime>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'syncId': serializer.toJson<String>(syncId),
+      'remoteRevision': serializer.toJson<int>(remoteRevision),
+      'deletedAt': serializer.toJson<DateTime>(deletedAt),
+    };
+  }
+
+  ProductSyncTombstone copyWith({
+    String? syncId,
+    int? remoteRevision,
+    DateTime? deletedAt,
+  }) => ProductSyncTombstone(
+    syncId: syncId ?? this.syncId,
+    remoteRevision: remoteRevision ?? this.remoteRevision,
+    deletedAt: deletedAt ?? this.deletedAt,
+  );
+  ProductSyncTombstone copyWithCompanion(ProductSyncTombstonesCompanion data) {
+    return ProductSyncTombstone(
+      syncId: data.syncId.present ? data.syncId.value : this.syncId,
+      remoteRevision: data.remoteRevision.present
+          ? data.remoteRevision.value
+          : this.remoteRevision,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProductSyncTombstone(')
+          ..write('syncId: $syncId, ')
+          ..write('remoteRevision: $remoteRevision, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(syncId, remoteRevision, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProductSyncTombstone &&
+          other.syncId == this.syncId &&
+          other.remoteRevision == this.remoteRevision &&
+          other.deletedAt == this.deletedAt);
+}
+
+class ProductSyncTombstonesCompanion
+    extends UpdateCompanion<ProductSyncTombstone> {
+  final Value<String> syncId;
+  final Value<int> remoteRevision;
+  final Value<DateTime> deletedAt;
+  final Value<int> rowid;
+  const ProductSyncTombstonesCompanion({
+    this.syncId = const Value.absent(),
+    this.remoteRevision = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ProductSyncTombstonesCompanion.insert({
+    required String syncId,
+    required int remoteRevision,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : syncId = Value(syncId),
+       remoteRevision = Value(remoteRevision);
+  static Insertable<ProductSyncTombstone> custom({
+    Expression<String>? syncId,
+    Expression<int>? remoteRevision,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (syncId != null) 'sync_id': syncId,
+      if (remoteRevision != null) 'remote_revision': remoteRevision,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ProductSyncTombstonesCompanion copyWith({
+    Value<String>? syncId,
+    Value<int>? remoteRevision,
+    Value<DateTime>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return ProductSyncTombstonesCompanion(
+      syncId: syncId ?? this.syncId,
+      remoteRevision: remoteRevision ?? this.remoteRevision,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (syncId.present) {
+      map['sync_id'] = Variable<String>(syncId.value);
+    }
+    if (remoteRevision.present) {
+      map['remote_revision'] = Variable<int>(remoteRevision.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProductSyncTombstonesCompanion(')
+          ..write('syncId: $syncId, ')
+          ..write('remoteRevision: $remoteRevision, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CatalogSyncStateTable extends CatalogSyncState
+    with TableInfo<$CatalogSyncStateTable, CatalogSyncStateData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CatalogSyncStateTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, value];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'catalog_sync_state';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CatalogSyncStateData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  CatalogSyncStateData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CatalogSyncStateData(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+    );
+  }
+
+  @override
+  $CatalogSyncStateTable createAlias(String alias) {
+    return $CatalogSyncStateTable(attachedDatabase, alias);
+  }
+}
+
+class CatalogSyncStateData extends DataClass
+    implements Insertable<CatalogSyncStateData> {
+  final String key;
+  final String value;
+  const CatalogSyncStateData({required this.key, required this.value});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    return map;
+  }
+
+  CatalogSyncStateCompanion toCompanion(bool nullToAbsent) {
+    return CatalogSyncStateCompanion(key: Value(key), value: Value(value));
+  }
+
+  factory CatalogSyncStateData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CatalogSyncStateData(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+    };
+  }
+
+  CatalogSyncStateData copyWith({String? key, String? value}) =>
+      CatalogSyncStateData(key: key ?? this.key, value: value ?? this.value);
+  CatalogSyncStateData copyWithCompanion(CatalogSyncStateCompanion data) {
+    return CatalogSyncStateData(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CatalogSyncStateData(')
+          ..write('key: $key, ')
+          ..write('value: $value')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CatalogSyncStateData &&
+          other.key == this.key &&
+          other.value == this.value);
+}
+
+class CatalogSyncStateCompanion extends UpdateCompanion<CatalogSyncStateData> {
+  final Value<String> key;
+  final Value<String> value;
+  final Value<int> rowid;
+  const CatalogSyncStateCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CatalogSyncStateCompanion.insert({
+    required String key,
+    required String value,
+    this.rowid = const Value.absent(),
+  }) : key = Value(key),
+       value = Value(value);
+  static Insertable<CatalogSyncStateData> custom({
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CatalogSyncStateCompanion copyWith({
+    Value<String>? key,
+    Value<String>? value,
+    Value<int>? rowid,
+  }) {
+    return CatalogSyncStateCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CatalogSyncStateCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1941,6 +2580,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $BarcodeLookupCacheTable barcodeLookupCache =
       $BarcodeLookupCacheTable(this);
   late final $LoyverseCacheTable loyverseCache = $LoyverseCacheTable(this);
+  late final $ProductSyncTombstonesTable productSyncTombstones =
+      $ProductSyncTombstonesTable(this);
+  late final $CatalogSyncStateTable catalogSyncState = $CatalogSyncStateTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1949,6 +2593,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     products,
     barcodeLookupCache,
     loyverseCache,
+    productSyncTombstones,
+    catalogSyncState,
   ];
 }
 
@@ -1974,6 +2620,9 @@ typedef $$ProductsTableCreateCompanionBuilder =
       Value<String?> groupId,
       Value<String?> importSource,
       Value<String?> importBatchId,
+      Value<String?> syncId,
+      Value<int?> remoteRevision,
+      Value<bool> syncPending,
     });
 typedef $$ProductsTableUpdateCompanionBuilder =
     ProductsCompanion Function({
@@ -1997,6 +2646,9 @@ typedef $$ProductsTableUpdateCompanionBuilder =
       Value<String?> groupId,
       Value<String?> importSource,
       Value<String?> importBatchId,
+      Value<String?> syncId,
+      Value<int?> remoteRevision,
+      Value<bool> syncPending,
     });
 
 class $$ProductsTableFilterComposer
@@ -2105,6 +2757,21 @@ class $$ProductsTableFilterComposer
 
   ColumnFilters<String> get importBatchId => $composableBuilder(
     column: $table.importBatchId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get remoteRevision => $composableBuilder(
+    column: $table.remoteRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get syncPending => $composableBuilder(
+    column: $table.syncPending,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2217,6 +2884,21 @@ class $$ProductsTableOrderingComposer
     column: $table.importBatchId,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get remoteRevision => $composableBuilder(
+    column: $table.remoteRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get syncPending => $composableBuilder(
+    column: $table.syncPending,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ProductsTableAnnotationComposer
@@ -2303,6 +2985,19 @@ class $$ProductsTableAnnotationComposer
     column: $table.importBatchId,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get syncId =>
+      $composableBuilder(column: $table.syncId, builder: (column) => column);
+
+  GeneratedColumn<int> get remoteRevision => $composableBuilder(
+    column: $table.remoteRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get syncPending => $composableBuilder(
+    column: $table.syncPending,
+    builder: (column) => column,
+  );
 }
 
 class $$ProductsTableTableManager
@@ -2353,6 +3048,9 @@ class $$ProductsTableTableManager
                 Value<String?> groupId = const Value.absent(),
                 Value<String?> importSource = const Value.absent(),
                 Value<String?> importBatchId = const Value.absent(),
+                Value<String?> syncId = const Value.absent(),
+                Value<int?> remoteRevision = const Value.absent(),
+                Value<bool> syncPending = const Value.absent(),
               }) => ProductsCompanion(
                 id: id,
                 barcode: barcode,
@@ -2374,6 +3072,9 @@ class $$ProductsTableTableManager
                 groupId: groupId,
                 importSource: importSource,
                 importBatchId: importBatchId,
+                syncId: syncId,
+                remoteRevision: remoteRevision,
+                syncPending: syncPending,
               ),
           createCompanionCallback:
               ({
@@ -2397,6 +3098,9 @@ class $$ProductsTableTableManager
                 Value<String?> groupId = const Value.absent(),
                 Value<String?> importSource = const Value.absent(),
                 Value<String?> importBatchId = const Value.absent(),
+                Value<String?> syncId = const Value.absent(),
+                Value<int?> remoteRevision = const Value.absent(),
+                Value<bool> syncPending = const Value.absent(),
               }) => ProductsCompanion.insert(
                 id: id,
                 barcode: barcode,
@@ -2418,6 +3122,9 @@ class $$ProductsTableTableManager
                 groupId: groupId,
                 importSource: importSource,
                 importBatchId: importBatchId,
+                syncId: syncId,
+                remoteRevision: remoteRevision,
+                syncPending: syncPending,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -2912,6 +3619,365 @@ typedef $$LoyverseCacheTableProcessedTableManager =
       LoyverseCacheData,
       PrefetchHooks Function()
     >;
+typedef $$ProductSyncTombstonesTableCreateCompanionBuilder =
+    ProductSyncTombstonesCompanion Function({
+      required String syncId,
+      required int remoteRevision,
+      Value<DateTime> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$ProductSyncTombstonesTableUpdateCompanionBuilder =
+    ProductSyncTombstonesCompanion Function({
+      Value<String> syncId,
+      Value<int> remoteRevision,
+      Value<DateTime> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$ProductSyncTombstonesTableFilterComposer
+    extends Composer<_$AppDatabase, $ProductSyncTombstonesTable> {
+  $$ProductSyncTombstonesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get remoteRevision => $composableBuilder(
+    column: $table.remoteRevision,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ProductSyncTombstonesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProductSyncTombstonesTable> {
+  $$ProductSyncTombstonesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get remoteRevision => $composableBuilder(
+    column: $table.remoteRevision,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ProductSyncTombstonesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProductSyncTombstonesTable> {
+  $$ProductSyncTombstonesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get syncId =>
+      $composableBuilder(column: $table.syncId, builder: (column) => column);
+
+  GeneratedColumn<int> get remoteRevision => $composableBuilder(
+    column: $table.remoteRevision,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$ProductSyncTombstonesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ProductSyncTombstonesTable,
+          ProductSyncTombstone,
+          $$ProductSyncTombstonesTableFilterComposer,
+          $$ProductSyncTombstonesTableOrderingComposer,
+          $$ProductSyncTombstonesTableAnnotationComposer,
+          $$ProductSyncTombstonesTableCreateCompanionBuilder,
+          $$ProductSyncTombstonesTableUpdateCompanionBuilder,
+          (
+            ProductSyncTombstone,
+            BaseReferences<
+              _$AppDatabase,
+              $ProductSyncTombstonesTable,
+              ProductSyncTombstone
+            >,
+          ),
+          ProductSyncTombstone,
+          PrefetchHooks Function()
+        > {
+  $$ProductSyncTombstonesTableTableManager(
+    _$AppDatabase db,
+    $ProductSyncTombstonesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProductSyncTombstonesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ProductSyncTombstonesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ProductSyncTombstonesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> syncId = const Value.absent(),
+                Value<int> remoteRevision = const Value.absent(),
+                Value<DateTime> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProductSyncTombstonesCompanion(
+                syncId: syncId,
+                remoteRevision: remoteRevision,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String syncId,
+                required int remoteRevision,
+                Value<DateTime> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProductSyncTombstonesCompanion.insert(
+                syncId: syncId,
+                remoteRevision: remoteRevision,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $ProductSyncTombstonesTable,
+                    ProductSyncTombstone
+                  >(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ProductSyncTombstonesTable,
+                    ProductSyncTombstone
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ProductSyncTombstonesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ProductSyncTombstonesTable,
+      ProductSyncTombstone,
+      $$ProductSyncTombstonesTableFilterComposer,
+      $$ProductSyncTombstonesTableOrderingComposer,
+      $$ProductSyncTombstonesTableAnnotationComposer,
+      $$ProductSyncTombstonesTableCreateCompanionBuilder,
+      $$ProductSyncTombstonesTableUpdateCompanionBuilder,
+      (
+        ProductSyncTombstone,
+        BaseReferences<
+          _$AppDatabase,
+          $ProductSyncTombstonesTable,
+          ProductSyncTombstone
+        >,
+      ),
+      ProductSyncTombstone,
+      PrefetchHooks Function()
+    >;
+typedef $$CatalogSyncStateTableCreateCompanionBuilder =
+    CatalogSyncStateCompanion Function({
+      required String key,
+      required String value,
+      Value<int> rowid,
+    });
+typedef $$CatalogSyncStateTableUpdateCompanionBuilder =
+    CatalogSyncStateCompanion Function({
+      Value<String> key,
+      Value<String> value,
+      Value<int> rowid,
+    });
+
+class $$CatalogSyncStateTableFilterComposer
+    extends Composer<_$AppDatabase, $CatalogSyncStateTable> {
+  $$CatalogSyncStateTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CatalogSyncStateTableOrderingComposer
+    extends Composer<_$AppDatabase, $CatalogSyncStateTable> {
+  $$CatalogSyncStateTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CatalogSyncStateTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CatalogSyncStateTable> {
+  $$CatalogSyncStateTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+}
+
+class $$CatalogSyncStateTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CatalogSyncStateTable,
+          CatalogSyncStateData,
+          $$CatalogSyncStateTableFilterComposer,
+          $$CatalogSyncStateTableOrderingComposer,
+          $$CatalogSyncStateTableAnnotationComposer,
+          $$CatalogSyncStateTableCreateCompanionBuilder,
+          $$CatalogSyncStateTableUpdateCompanionBuilder,
+          (
+            CatalogSyncStateData,
+            BaseReferences<
+              _$AppDatabase,
+              $CatalogSyncStateTable,
+              CatalogSyncStateData
+            >,
+          ),
+          CatalogSyncStateData,
+          PrefetchHooks Function()
+        > {
+  $$CatalogSyncStateTableTableManager(
+    _$AppDatabase db,
+    $CatalogSyncStateTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CatalogSyncStateTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CatalogSyncStateTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CatalogSyncStateTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> key = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CatalogSyncStateCompanion(
+                key: key,
+                value: value,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String key,
+                required String value,
+                Value<int> rowid = const Value.absent(),
+              }) => CatalogSyncStateCompanion.insert(
+                key: key,
+                value: value,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CatalogSyncStateTable, CatalogSyncStateData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $CatalogSyncStateTable,
+                    CatalogSyncStateData
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CatalogSyncStateTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CatalogSyncStateTable,
+      CatalogSyncStateData,
+      $$CatalogSyncStateTableFilterComposer,
+      $$CatalogSyncStateTableOrderingComposer,
+      $$CatalogSyncStateTableAnnotationComposer,
+      $$CatalogSyncStateTableCreateCompanionBuilder,
+      $$CatalogSyncStateTableUpdateCompanionBuilder,
+      (
+        CatalogSyncStateData,
+        BaseReferences<
+          _$AppDatabase,
+          $CatalogSyncStateTable,
+          CatalogSyncStateData
+        >,
+      ),
+      CatalogSyncStateData,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2922,4 +3988,8 @@ class $AppDatabaseManager {
       $$BarcodeLookupCacheTableTableManager(_db, _db.barcodeLookupCache);
   $$LoyverseCacheTableTableManager get loyverseCache =>
       $$LoyverseCacheTableTableManager(_db, _db.loyverseCache);
+  $$ProductSyncTombstonesTableTableManager get productSyncTombstones =>
+      $$ProductSyncTombstonesTableTableManager(_db, _db.productSyncTombstones);
+  $$CatalogSyncStateTableTableManager get catalogSyncState =>
+      $$CatalogSyncStateTableTableManager(_db, _db.catalogSyncState);
 }

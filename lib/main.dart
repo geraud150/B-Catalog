@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'app.dart';
 import 'core/database/app_database.dart';
+import 'core/supabase/supabase_bootstrap.dart';
 import 'core/theme/app_theme.dart';
 
 Future<void> main() async {
@@ -15,11 +16,14 @@ Future<void> main() async {
   SystemChrome.setSystemUIOverlayStyle(AppTheme.statusBarStyle);
 
   await dotenv.load(fileName: '.env');
+  await SupabaseBootstrap.initialize();
 
   final database = AppDatabase();
   // Requête minimale pour vérifier que la base locale est bien accessible.
   await database.select(database.products).get();
-  debugPrint('[BoutiqueCatalog] Base de données SQLite initialisée avec succès.');
+  debugPrint(
+    '[BoutiqueCatalog] Base de données SQLite initialisée avec succès.',
+  );
 
   runApp(App(database: database));
 }

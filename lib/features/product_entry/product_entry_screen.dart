@@ -414,6 +414,11 @@ class _ProductEntryScreenState extends State<ProductEntryScreen> {
       syncedToLoyverse: existing != null
           ? Value(existing.syncedToLoyverse)
           : const Value(false),
+      syncId: existing != null ? Value(existing.syncId) : const Value.absent(),
+      remoteRevision: existing != null
+          ? Value(existing.remoteRevision)
+          : const Value.absent(),
+      syncPending: const Value(true),
       // `update(...).replace(...)` remet à null les colonnes absentes : il
       // faut donc explicitement reporter la liaison Loyverse existante,
       // sous peine de la perdre à chaque modification du produit.
@@ -1014,11 +1019,7 @@ class _EntryAppBar extends StatelessWidget implements PreferredSizeWidget {
               child: const SizedBox(
                 width: 40,
                 height: 40,
-                child: Icon(
-                  Icons.arrow_back,
-                  size: 20,
-                  color: AppPalette.text,
-                ),
+                child: Icon(Icons.arrow_back, size: 20, color: AppPalette.text),
               ),
             ),
           ),
@@ -1187,10 +1188,7 @@ class _SectionHeader extends StatelessWidget {
               if (subtitle != null)
                 Text(
                   subtitle!,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppPalette.muted,
-                  ),
+                  style: const TextStyle(fontSize: 11, color: AppPalette.muted),
                 ),
             ],
           ),

@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:uuid/uuid.dart';
 
 import '../utils/sku_generator.dart';
 
@@ -40,6 +41,27 @@ class Products extends Table {
   /// Identifiant (UUID) partagé par tous les produits créés lors d'un même
   /// import en masse, pour retrouver ou tracer un lot dans son ensemble.
   TextColumn get importBatchId => text().nullable()();
+  TextColumn get syncId =>
+      text().nullable().clientDefault(() => const Uuid().v4())();
+  IntColumn get remoteRevision => integer().nullable()();
+  BoolColumn get syncPending => boolean().withDefault(const Constant(true))();
+}
+
+class ProductSyncTombstones extends Table {
+  TextColumn get syncId => text()();
+  IntColumn get remoteRevision => integer()();
+  DateTimeColumn get deletedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {syncId};
+}
+
+class CatalogSyncState extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column> get primaryKey => {key};
 }
 
 /// Cache local des résultats de recherche de code-barres auprès des sources
@@ -71,14 +93,22 @@ class LoyverseCache extends Table {
   Set<Column> get primaryKey => {cacheKey};
 }
 
-@DriftDatabase(tables: [Products, BarcodeLookupCache, LoyverseCache])
+@DriftDatabase(
+  tables: [
+    Products,
+    BarcodeLookupCache,
+    LoyverseCache,
+    ProductSyncTombstones,
+    CatalogSyncState,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -110,6 +140,25 @@ class AppDatabase extends _$AppDatabase {
       if (from < 7) {
         await m.addColumn(products, products.importSource);
         await m.addColumn(products, products.importBatchId);
+      }
+      if (from < 8) {
+        await m.addColumn(products, products.syncId);
+        await m.addColumn(products, products.remoteRevision);
+        await m.addColumn(products, products.syncPending);
+        await m.createTable(productSyncTombstones);
+        await m.createTable(catalogSyncState);
+
+        final existingProducts = await select(products).get();
+        for (final product in existingProducts) {
+          await (update(
+            products,
+          )..where((tbl) => tbl.id.equals(product.id))).write(
+            ProductsCompanion(
+              syncId: Value(const Uuid().v4()),
+              syncPending: const Value(true),
+            ),
+          );
+        }
       }
     },
   );
@@ -226,11 +275,205 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<bool> updateProduct(ProductsCompanion product) {
-    return update(products).replace(product);
+    return update(products).replace(
+      product.copyWith(
+        updatedAt: Value(DateTime.now()),
+        syncPending: const Value(true),
+      ),
+    );
   }
 
-  Future<int> deleteProduct(int id) {
-    return (delete(products)..where((tbl) => tbl.id.equals(id))).go();
+  Future<int> deleteProduct(int id) async {
+    return transaction(() async {
+      final product = await getProductById(id);
+      if (product == null) return 0;
+
+      if (product.remoteRevision != null && product.syncId != null) {
+        await into(productSyncTombstones).insertOnConflictUpdate(
+          ProductSyncTombstonesCompanion.insert(
+            syncId: product.syncId!,
+            remoteRevision: product.remoteRevision!,
+            deletedAt: Value(DateTime.now()),
+          ),
+        );
+      }
+
+      return (delete(products)..where((tbl) => tbl.id.equals(id))).go();
+    });
+  }
+
+  Future<List<Product>> getProductsPendingSync() =>
+      (select(products)..where((tbl) => tbl.syncPending.equals(true))).get();
+
+  Future<Product?> getProductBySyncId(String syncId) => (select(
+    products,
+  )..where((tbl) => tbl.syncId.equals(syncId))).getSingleOrNull();
+
+  Future<void> setCatalogSyncState(String key, String value) =>
+      into(catalogSyncState).insertOnConflictUpdate(
+        CatalogSyncStateCompanion.insert(key: key, value: value),
+      );
+
+  Future<String?> getCatalogSyncState(String key) async {
+    final state = await (select(
+      catalogSyncState,
+    )..where((tbl) => tbl.key.equals(key))).getSingleOrNull();
+    return state?.value;
+  }
+
+  /// Identifiant persistant de l'installation, utilisé uniquement pour
+  /// départager atomiquement le tout premier appareil qui initialise le cloud.
+  Future<String> getOrCreateCatalogDeviceId() async {
+    const key = 'device_id';
+    final existing = await getCatalogSyncState(key);
+    if (existing != null) return existing;
+
+    final id = const Uuid().v4();
+    await setCatalogSyncState(key, id);
+    return id;
+  }
+
+  /// Associe une fiche locale jusque-là inconnue du cloud à une fiche distante
+  /// reconnue par un identifiant métier stable. Elle reste à envoyer afin que
+  /// ses données locales soient fusionnées dans la fiche distante.
+  Future<void> adoptRemoteProductIdentity({
+    required int localId,
+    required String syncId,
+    required int remoteRevision,
+  }) {
+    return (update(products)..where((tbl) => tbl.id.equals(localId))).write(
+      ProductsCompanion(
+        syncId: Value(syncId),
+        remoteRevision: Value(remoteRevision),
+        syncPending: const Value(true),
+      ),
+    );
+  }
+
+  /// Deux fiches locales ayant été reconnues comme le même article cloud sont
+  /// réduites à une seule. Les informations renseignées priment sur les
+  /// champs vides et le stock conserve la valeur la plus haute : additionner
+  /// compterait deux fois le même stock physique.
+  Future<void> mergeUnsyncedDuplicateInto({
+    required int canonicalId,
+    required int duplicateId,
+  }) {
+    return transaction(() async {
+      final canonical = await getProductById(canonicalId);
+      final duplicate = await getProductById(duplicateId);
+      if (canonical == null || duplicate == null) return;
+
+      String? preferred(String? first, String? second) {
+        if (first != null && first.trim().isNotEmpty) return first;
+        return second;
+      }
+
+      await (update(products)..where((tbl) => tbl.id.equals(canonicalId))).write(
+        ProductsCompanion(
+          barcode: Value(preferred(canonical.barcode, duplicate.barcode)),
+          sku: Value(preferred(canonical.sku, duplicate.sku)),
+          name: Value(preferred(canonical.name, duplicate.name) ?? canonical.name),
+          category: Value(preferred(canonical.category, duplicate.category)),
+          description: Value(
+            preferred(canonical.description, duplicate.description),
+          ),
+          costPrice: Value(canonical.costPrice ?? duplicate.costPrice),
+          sellPrice: Value(canonical.sellPrice ?? duplicate.sellPrice),
+          quantity: Value(
+            canonical.quantity > duplicate.quantity
+                ? canonical.quantity
+                : duplicate.quantity,
+          ),
+          photoPath: Value(preferred(canonical.photoPath, duplicate.photoPath)),
+          createdAt: Value(
+            canonical.createdAt.isBefore(duplicate.createdAt)
+                ? canonical.createdAt
+                : duplicate.createdAt,
+          ),
+          updatedAt: Value(DateTime.now()),
+          syncedToLoyverse: Value(
+            canonical.syncedToLoyverse || duplicate.syncedToLoyverse,
+          ),
+          optionName: Value(preferred(canonical.optionName, duplicate.optionName)),
+          optionValue: Value(
+            preferred(canonical.optionValue, duplicate.optionValue),
+          ),
+          loyverseItemId: Value(
+            preferred(canonical.loyverseItemId, duplicate.loyverseItemId),
+          ),
+          loyverseVariantId: Value(
+            preferred(canonical.loyverseVariantId, duplicate.loyverseVariantId),
+          ),
+          groupId: Value(preferred(canonical.groupId, duplicate.groupId)),
+          importSource: Value(
+            preferred(canonical.importSource, duplicate.importSource),
+          ),
+          importBatchId: Value(
+            preferred(canonical.importBatchId, duplicate.importBatchId),
+          ),
+          syncPending: const Value(true),
+        ),
+      );
+      await (delete(products)..where((tbl) => tbl.id.equals(duplicateId))).go();
+    });
+  }
+
+  /// Enregistre l'identifiant et la révision renvoyés par le serveur après
+  /// l'envoi d'un produit. [syncId]/[revision] sont toujours mis à jour :
+  /// sans eux, une édition locale concurrente ferait resynchroniser ce
+  /// produit avec une révision attendue périmée, rejetée indéfiniment par
+  /// `apply_catalog_product_change` (conflit qui ne se résorbe jamais).
+  ///
+  /// `syncPending` n'est en revanche levé à `false` que si la fiche locale
+  /// n'a pas changé depuis l'envoi ([expectedLocalUpdatedAt] toujours
+  /// courant) : sinon l'édition concurrente doit encore être envoyée au
+  /// prochain passage, cette fois avec la révision désormais à jour.
+  Future<void> markProductSynced({
+    required int id,
+    required String syncId,
+    required int revision,
+    required DateTime updatedAt,
+    required DateTime expectedLocalUpdatedAt,
+  }) {
+    return transaction(() async {
+      await (update(products)..where((tbl) => tbl.id.equals(id))).write(
+        ProductsCompanion(
+          syncId: Value(syncId),
+          remoteRevision: Value(revision),
+        ),
+      );
+      await (update(products)..where(
+            (tbl) =>
+                tbl.id.equals(id) &
+                tbl.updatedAt.equals(expectedLocalUpdatedAt),
+          ))
+          .write(
+            ProductsCompanion(
+              updatedAt: Value(updatedAt),
+              syncPending: const Value(false),
+            ),
+          );
+    });
+  }
+
+  Future<void> applyRemoteProduct(ProductsCompanion product) async {
+    await into(products).insertOnConflictUpdate(product);
+  }
+
+  Future<List<ProductSyncTombstone>> getProductSyncTombstones() =>
+      select(productSyncTombstones).get();
+
+  Future<void> clearProductSyncTombstone(String syncId) async {
+    await (delete(
+      productSyncTombstones,
+    )..where((tbl) => tbl.syncId.equals(syncId))).go();
+  }
+
+  Future<void> applyRemoteProductDeletion(String syncId) async {
+    await transaction(() async {
+      await (delete(products)..where((tbl) => tbl.syncId.equals(syncId))).go();
+      await clearProductSyncTombstone(syncId);
+    });
   }
 
   Stream<List<Product>> watchAllProducts() {
@@ -327,6 +570,7 @@ class AppDatabase extends _$AppDatabase {
         loyverseVariantId: Value(loyverseVariantId),
         syncedToLoyverse: const Value(true),
         updatedAt: Value(DateTime.now()),
+        syncPending: const Value(true),
       ),
     );
   }
@@ -335,7 +579,11 @@ class AppDatabase extends _$AppDatabase {
   /// (contrairement à `updateProduct`, qui utilise `.replace()`).
   Future<void> setGroupId({required int id, required String groupId}) {
     return (update(products)..where((tbl) => tbl.id.equals(id))).write(
-      ProductsCompanion(groupId: Value(groupId)),
+      ProductsCompanion(
+        groupId: Value(groupId),
+        updatedAt: Value(DateTime.now()),
+        syncPending: const Value(true),
+      ),
     );
   }
 
@@ -345,10 +593,12 @@ class AppDatabase extends _$AppDatabase {
   /// neuve au prochain envoi.
   Future<void> clearLoyverseLink(int id) {
     return (update(products)..where((tbl) => tbl.id.equals(id))).write(
-      const ProductsCompanion(
+      ProductsCompanion(
         loyverseItemId: Value(null),
         loyverseVariantId: Value(null),
         syncedToLoyverse: Value(false),
+        updatedAt: Value(DateTime.now()),
+        syncPending: const Value(true),
       ),
     );
   }

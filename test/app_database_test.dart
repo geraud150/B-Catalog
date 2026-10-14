@@ -149,4 +149,163 @@ void main() {
       expect(await database.countImportedProductsToComplete(), 0);
     });
   });
+
+  group('catalog synchronization metadata', () {
+    test('assigns a stable UUID to a local product', () async {
+      final id = await database.insertProduct(
+        ProductsCompanion.insert(name: 'Produit local'),
+      );
+
+      final product = await database.getProductById(id);
+
+      expect(product!.syncId, isNotNull);
+      expect(product.syncId, isNotEmpty);
+      expect(product.syncPending, isTrue);
+      expect(product.remoteRevision, isNull);
+    });
+
+    test('keeps a tombstone when a synchronized product is deleted', () async {
+      final id = await database.insertProduct(
+        ProductsCompanion.insert(name: 'Produit synchronisé'),
+      );
+      final product = await database.getProductById(id);
+      await (database.update(
+        database.products,
+      )..where((tbl) => tbl.id.equals(id))).write(
+        ProductsCompanion(
+          remoteRevision: const Value(3),
+          syncPending: const Value(false),
+        ),
+      );
+
+      expect(await database.deleteProduct(id), 1);
+
+      final tombstones = await database.getProductSyncTombstones();
+      expect(tombstones, hasLength(1));
+      expect(tombstones.single.syncId, product!.syncId);
+      expect(tombstones.single.remoteRevision, 3);
+    });
+  });
+
+  group('catalog duplicate reconciliation', () {
+    test('adopts a remote identity while keeping the local change pending',
+        () async {
+      final id = await database.insertProduct(
+        ProductsCompanion.insert(name: 'Produit local'),
+      );
+
+      await database.adoptRemoteProductIdentity(
+        localId: id,
+        syncId: '11111111-1111-4111-8111-111111111111',
+        remoteRevision: 4,
+      );
+
+      final product = await database.getProductById(id);
+      expect(product!.syncId, '11111111-1111-4111-8111-111111111111');
+      expect(product.remoteRevision, 4);
+      expect(product.syncPending, isTrue);
+    });
+
+    test('merges local duplicates without adding stock twice', () async {
+      final canonicalId = await database.insertProduct(
+        ProductsCompanion.insert(
+          name: 'Produit',
+          barcode: const Value('123'),
+          quantity: const Value(5),
+          description: const Value(''),
+        ),
+      );
+      final duplicateId = await database.insertProduct(
+        ProductsCompanion.insert(
+          name: 'Produit complet',
+          sku: const Value('SKU-123'),
+          quantity: const Value(8),
+          description: const Value('Description conservée'),
+        ),
+      );
+
+      await database.mergeUnsyncedDuplicateInto(
+        canonicalId: canonicalId,
+        duplicateId: duplicateId,
+      );
+
+      final product = await database.getProductById(canonicalId);
+      expect(await database.getProductById(duplicateId), isNull);
+      expect(product!.barcode, '123');
+      expect(product.sku, 'SKU-123');
+      expect(product.description, 'Description conservée');
+      expect(product.quantity, 8);
+      expect(product.syncPending, isTrue);
+    });
+  });
+
+  group('markProductSynced', () {
+    test(
+      'clears syncPending when the local row has not changed since upload',
+      () async {
+        final id = await database.insertProduct(
+          ProductsCompanion.insert(name: 'Produit'),
+        );
+        final product = await database.getProductById(id);
+
+        await database.markProductSynced(
+          id: id,
+          syncId: 'remote-1',
+          revision: 2,
+          updatedAt: DateTime(2026, 1, 2),
+          expectedLocalUpdatedAt: product!.updatedAt,
+        );
+
+        final updated = await database.getProductById(id);
+        expect(updated!.syncId, 'remote-1');
+        expect(updated.remoteRevision, 2);
+        expect(updated.syncPending, isFalse);
+        expect(updated.updatedAt, DateTime(2026, 1, 2));
+      },
+    );
+
+    test(
+      'still records the server revision when the local row changed during '
+      'upload, so the next attempt does not resend a stale expected '
+      'revision forever, but leaves the concurrent edit queued',
+      () async {
+        final id = await database.insertProduct(
+          ProductsCompanion.insert(
+            name: 'Produit',
+            updatedAt: Value(DateTime(2026, 1, 1)),
+          ),
+        );
+        final original = await database.getProductById(id);
+
+        // Simulates an edit made by the user while the first upload was in
+        // flight: the local row moves on (to a distinctly later timestamp)
+        // before the server's answer comes back for the revision that was
+        // actually sent.
+        await (database.update(
+          database.products,
+        )..where((tbl) => tbl.id.equals(id))).write(
+          ProductsCompanion(
+            name: const Value('Produit modifié'),
+            updatedAt: Value(DateTime(2026, 1, 3)),
+          ),
+        );
+
+        await database.markProductSynced(
+          id: id,
+          syncId: 'remote-1',
+          revision: 1,
+          updatedAt: DateTime(2026, 1, 2),
+          expectedLocalUpdatedAt: original!.updatedAt,
+        );
+
+        final result = await database.getProductById(id);
+        expect(result!.syncId, 'remote-1');
+        expect(result.remoteRevision, 1);
+        // The concurrent edit must still be sent next time, with its own
+        // timestamp untouched.
+        expect(result.syncPending, isTrue);
+        expect(result.updatedAt, DateTime(2026, 1, 3));
+      },
+    );
+  });
 }

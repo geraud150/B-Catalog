@@ -34,6 +34,7 @@ Product _buildProduct({
     createdAt: now,
     updatedAt: now,
     syncedToLoyverse: false,
+    syncPending: true,
   );
 }
 
@@ -129,9 +130,7 @@ void main() {
     final api = _FakeLoyverseApiService(database: database);
     final service = SyncService(database: database, apiService: api);
 
-    final results = await service.syncProducts([
-      _buildProduct(category: null),
-    ]);
+    final results = await service.syncProducts([_buildProduct(category: null)]);
 
     expect(results, hasLength(1));
     expect(results.single.success, isFalse);
@@ -150,28 +149,25 @@ void main() {
     expect(results.single.errorMessage, 'Prix de vente manquant');
   });
 
-  test(
-    'le message d\'erreur Loyverse est extrait de "errors[].details", pas '
-    'un dump brut de la réponse',
-    () async {
-      final api = _FakeLoyverseApiService(
-        database: database,
-        dioErrorDetailsFor: 'Produit défaillant',
-      );
-      final service = SyncService(database: database, apiService: api);
+  test('le message d\'erreur Loyverse est extrait de "errors[].details", pas '
+      'un dump brut de la réponse', () async {
+    final api = _FakeLoyverseApiService(
+      database: database,
+      dioErrorDetailsFor: 'Produit défaillant',
+    );
+    final service = SyncService(database: database, apiService: api);
 
-      final results = await service.syncProducts([
-        _buildProduct(name: 'Produit défaillant'),
-      ]);
+    final results = await service.syncProducts([
+      _buildProduct(name: 'Produit défaillant'),
+    ]);
 
-      expect(
-        results.single.errorMessage,
-        'Message lisible attendu par l\'utilisateur',
-      );
-      // Ne doit pas remonter la Map brute (ex. "{code: ..., field: ...}").
-      expect(results.single.errorMessage, isNot(contains('{code')));
-    },
-  );
+    expect(
+      results.single.errorMessage,
+      'Message lisible attendu par l\'utilisateur',
+    );
+    // Ne doit pas remonter la Map brute (ex. "{code: ..., field: ...}").
+    expect(results.single.errorMessage, isNot(contains('{code')));
+  });
 
   test(
     'un échec sur un produit n\'empêche pas la synchronisation des suivants',
@@ -200,10 +196,10 @@ void main() {
     final service = SyncService(database: database, apiService: api);
     final progressCalls = <(int, int)>[];
 
-    await service.syncProducts(
-      [_buildProduct(id: 1), _buildProduct(id: 2)],
-      onProgress: (done, total) => progressCalls.add((done, total)),
-    );
+    await service.syncProducts([
+      _buildProduct(id: 1),
+      _buildProduct(id: 2),
+    ], onProgress: (done, total) => progressCalls.add((done, total)));
 
     expect(progressCalls, [(1, 2), (2, 2)]);
   });

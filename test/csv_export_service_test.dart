@@ -34,6 +34,7 @@ Product buildProduct({
     createdAt: now,
     updatedAt: now,
     syncedToLoyverse: false,
+    syncPending: true,
   );
 }
 
@@ -62,10 +63,7 @@ void main() {
         paths.last,
       );
       expect(
-        CsvExportService.firstExistingDirectory(
-          paths,
-          exists: (_) => true,
-        ),
+        CsvExportService.firstExistingDirectory(paths, exists: (_) => true),
         paths.first,
       );
       expect(
@@ -89,29 +87,32 @@ void main() {
   test('en-tête conforme au format d\'import Loyverse', () {
     final lines = service.exportToCsv([]).split('\r\n');
 
-    expect(lines.first, [
-      'Handle',
-      'SKU',
-      'Name',
-      'Category',
-      'Description',
-      'Sold by weight',
-      'Option 1 name',
-      'Option 1 value',
-      'Option 2 name',
-      'Option 2 value',
-      'Option 3 name',
-      'Option 3 value',
-      'Cost',
-      'Barcode',
-      'SKU of included item',
-      'Quantity of included item',
-      'Track stock',
-      'Available for sale [$kLoyverseStoreName]',
-      'Price [$kLoyverseStoreName]',
-      'In stock [$kLoyverseStoreName]',
-      'Low stock [$kLoyverseStoreName]',
-    ].join(','));
+    expect(
+      lines.first,
+      [
+        'Handle',
+        'SKU',
+        'Name',
+        'Category',
+        'Description',
+        'Sold by weight',
+        'Option 1 name',
+        'Option 1 value',
+        'Option 2 name',
+        'Option 2 value',
+        'Option 3 name',
+        'Option 3 value',
+        'Cost',
+        'Barcode',
+        'SKU of included item',
+        'Quantity of included item',
+        'Track stock',
+        'Available for sale [$kLoyverseStoreName]',
+        'Price [$kLoyverseStoreName]',
+        'In stock [$kLoyverseStoreName]',
+        'Low stock [$kLoyverseStoreName]',
+      ].join(','),
+    );
   });
 
   test('les montants entiers sont exportés sans décimale superflue', () {

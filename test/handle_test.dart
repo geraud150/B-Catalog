@@ -12,6 +12,7 @@ Product _buildProduct({String name = 'Produit', String? groupId}) {
     createdAt: now,
     updatedAt: now,
     syncedToLoyverse: false,
+    syncPending: false,
   );
 }
 
@@ -20,13 +21,16 @@ void main() {
     expect(generateHandle(_buildProduct(groupId: null)), '');
   });
 
-  test('slug en minuscules, sans accents, espaces remplacés par des tirets', () {
-    final handle = generateHandle(
-      _buildProduct(name: 'Rouge à lèvres Mat', groupId: 'a1b2c3d4-e5f6'),
-    );
+  test(
+    'slug en minuscules, sans accents, espaces remplacés par des tirets',
+    () {
+      final handle = generateHandle(
+        _buildProduct(name: 'Rouge à lèvres Mat', groupId: 'a1b2c3d4-e5f6'),
+      );
 
-    expect(handle, 'rouge-a-levres-mat-a1b2c3');
-  });
+      expect(handle, 'rouge-a-levres-mat-a1b2c3');
+    },
+  );
 
   test('deux produits du même groupe ont exactement le même handle', () {
     const groupId = 'group-xyz';
@@ -40,10 +44,17 @@ void main() {
     expect(handleA, handleB);
   });
 
-  test('deux groupes différents avec un nom similaire ont des handles distincts', () {
-    final handle1 = generateHandle(_buildProduct(name: 'Polo', groupId: 'group-1'));
-    final handle2 = generateHandle(_buildProduct(name: 'Polo', groupId: 'group-2'));
+  test(
+    'deux groupes différents avec un nom similaire ont des handles distincts',
+    () {
+      final handle1 = generateHandle(
+        _buildProduct(name: 'Polo', groupId: 'group-1'),
+      );
+      final handle2 = generateHandle(
+        _buildProduct(name: 'Polo', groupId: 'group-2'),
+      );
 
-    expect(handle1, isNot(handle2));
-  });
+      expect(handle1, isNot(handle2));
+    },
+  );
 }

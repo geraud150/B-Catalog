@@ -4,6 +4,7 @@ import '../../core/database/app_database.dart';
 import '../../core/theme/app_breakpoints.dart';
 import '../../core/theme/app_palette.dart';
 import '../review/review_screen.dart';
+import '../sync/catalog_sync_screen.dart';
 import 'import_preview_screen.dart';
 
 /// Onglet "Import" du shell, d'après la maquette Stitch "Import & export" :
@@ -44,8 +45,15 @@ class ImportHubScreen extends StatelessWidget {
   }
 
   void _openReview(BuildContext context) {
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push(MaterialPageRoute(builder: (_) => ReviewScreen(database: database)));
+  }
+
+  void _openCatalogSync(BuildContext context) {
     Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute(builder: (_) => ReviewScreen(database: database)),
+      MaterialPageRoute(builder: (_) => CatalogSyncScreen(database: database)),
     );
   }
 
@@ -66,6 +74,13 @@ class ImportHubScreen extends StatelessWidget {
         'Contrôler la complétude des fiches, exporter en CSV '
         'ou envoyer vers Loyverse.',
     onTap: () => _openReview(context),
+  );
+
+  Widget _syncCard(BuildContext context) => _HubCard(
+    icon: Icons.sync,
+    title: 'Synchroniser le catalogue',
+    subtitle: 'Partager les modifications avec les autres appareils.',
+    onTap: () => _openCatalogSync(context),
   );
 
   @override
@@ -90,6 +105,8 @@ class ImportHubScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 20),
+                _syncCard(context),
+                const SizedBox(height: 16),
                 // Cartes empilées en mobile, côte à côte sur grand écran.
                 if (context.isWideLayout)
                   IntrinsicHeight(

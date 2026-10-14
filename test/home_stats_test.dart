@@ -25,6 +25,7 @@ void main() {
       createdAt: now,
       updatedAt: now,
       syncedToLoyverse: false,
+      syncPending: false,
     );
   }
 
@@ -56,39 +57,36 @@ void main() {
     expect(stats.categoryCount, 2);
   });
 
-  test(
-    'la complétude exige SKU, code-barres, prix, catégorie et photo',
-    () {
-      expect(HomeStats.isComplete(complete), isTrue);
-      expect(
-        HomeStats.isComplete(
-          product(
-            category: 'Soins',
-            sku: 'SKU-1',
-            barcode: '123',
-            sellPrice: 10,
-            photoPath: ' ',
-          ),
+  test('la complétude exige SKU, code-barres, prix, catégorie et photo', () {
+    expect(HomeStats.isComplete(complete), isTrue);
+    expect(
+      HomeStats.isComplete(
+        product(
+          category: 'Soins',
+          sku: 'SKU-1',
+          barcode: '123',
+          sellPrice: 10,
+          photoPath: ' ',
         ),
-        isFalse,
-      );
-      expect(
-        HomeStats.isComplete(
-          product(
-            category: 'Soins',
-            sku: 'SKU-1',
-            barcode: '123',
-            photoPath: '/p.jpg',
-          ),
+      ),
+      isFalse,
+    );
+    expect(
+      HomeStats.isComplete(
+        product(
+          category: 'Soins',
+          sku: 'SKU-1',
+          barcode: '123',
+          photoPath: '/p.jpg',
         ),
-        isFalse,
-      );
+      ),
+      isFalse,
+    );
 
-      final stats = HomeStats.fromProducts([complete, product(), product()]);
-      expect(stats.completeCount, 1);
-      expect(stats.completenessPercent, 33);
-    },
-  );
+    final stats = HomeStats.fromProducts([complete, product(), product()]);
+    expect(stats.completeCount, 1);
+    expect(stats.completenessPercent, 33);
+  });
 
   test('les fiches importées à compléter suivent la règle du compteur', () {
     final stats = HomeStats.fromProducts([

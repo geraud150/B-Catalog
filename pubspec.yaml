@@ -52,6 +52,7 @@ dependencies:
   uuid: ^4.6.0
   archive: ^4.3.0
   xml: ^7.0.1
+  supabase_flutter: 2.18.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -68,6 +69,11 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.4.13
   drift_dev: ^2.35.0
+
+  # Simule le transport HTTP de SupabaseClient dans
+  # test/catalog_sync_service_test.dart, sans dépendre d'une instance
+  # Supabase réelle.
+  http: ^1.6.0
 
 # Icône de l'application : reprend la vignette violette de l'en-tête de
 # l'accueil (glyphe "store" blanc sur fond #5A4B81, repris du lockup de la
