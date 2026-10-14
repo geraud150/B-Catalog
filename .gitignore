@@ -47,3 +47,6 @@ app.*.map.json
 # Environment variables
 .env
 .mcp.json
+
+# Claude Code session-local state (changes on every run, not a project file)
+.claude/scheduled_tasks.lock
