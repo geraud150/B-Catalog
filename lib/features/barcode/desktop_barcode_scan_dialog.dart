@@ -44,6 +44,7 @@ class _DesktopBarcodeScanDialogState extends State<DesktopBarcodeScanDialog> {
     setState(() => _isOpeningWebcam = true);
 
     try {
+      debugPrint('🔍 [DEBUG] Lancement du scanner webcam...');
       final value = await UniversalBarcodeScanner.scan(
         context,
         // Les mêmes familles 1D que le scanner mobile : pas de QR code dans
@@ -67,8 +68,26 @@ class _DesktopBarcodeScanDialogState extends State<DesktopBarcodeScanDialog> {
           ScannerButton.switchCamera,
         },
       );
-      if (!mounted || value == null || value.trim().isEmpty) return;
-      Navigator.of(context).pop(value.trim());
+      debugPrint('🔍 [DEBUG] Scanner terminé. Résultat brut: "$value"');
+      
+      if (!mounted) {
+        debugPrint('🔍 [DEBUG] Widget non monté, abandon');
+        return;
+      }
+      if (value == null) {
+        debugPrint('🔍 [DEBUG] Valeur null (utilisateur a annulé)');
+        return;
+      }
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) {
+        debugPrint('🔍 [DEBUG] Valeur vide après trim');
+        return;
+      }
+      debugPrint('🔍 [DEBUG] Code-barres détecté: "$trimmed" → retour à l\'appelant');
+      Navigator.of(context).pop(trimmed);
+    } catch (e, stack) {
+      debugPrint('🔍 [DEBUG] ERREUR scanner: $e');
+      debugPrint('🔍 [DEBUG] Stack: $stack');
     } finally {
       if (mounted) {
         setState(() => _isOpeningWebcam = false);
