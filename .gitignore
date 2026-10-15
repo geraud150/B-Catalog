@@ -50,3 +50,8 @@ app.*.map.json
 
 # Claude Code session-local state (changes on every run, not a project file)
 .claude/scheduled_tasks.lock
+
+# Cache du compilateur Kotlin
+.kotlin/
+kotlin-compiler-*
+*.kotlin_metadata
